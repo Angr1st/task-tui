@@ -1,5 +1,7 @@
 use std::{fs, io, sync::mpsc, thread, time::{Duration, Instant}};
 use crossterm::{event,event::KeyCode, terminal::{disable_raw_mode, enable_raw_mode}};
+use rand::prelude::*;
+use rand::distributions::Alphanumeric;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use thiserror::Error;
@@ -11,7 +13,7 @@ const DB_PATH: &str = "./data/db.json";
 struct Task {
     id: usize,
     name: String,
-    category: String,
+    state: String,
     created_at: DateTime<Utc>,
     finished_at: Option<DateTime<Utc>>
 }
@@ -29,6 +31,7 @@ enum Event<I> {
     Tick
 }
 
+#[derive(Copy, Clone, Debug)]
 enum MenuItem {
     Home,
     Tasks
@@ -47,6 +50,42 @@ fn read_db() -> Result<Vec<Task>, Error> {
     let db_content = fs::read_to_string(DB_PATH)?;
     let parsed: Vec<Task> = serde_json::from_str(&db_content)?;
     Ok(parsed)
+}
+
+fn add_random_task_to_db() -> Result<Vec<Task>, Error> {
+    let mut rng = rand::thread_rng();
+    let db_content = fs::read_to_string(DB_PATH)?;
+    let mut parsed: Vec<Task> = serde_json::from_str(&db_content)?;
+    let task_category = match rng.gen_range(0..3) {
+        0 => "pending",
+        1 => "started",
+        2 => "in progress",
+        _ => "done"
+    };
+
+    let random_task = Task {
+        id: rng.gen_range(1..99999),
+        name: rng.sample_iter(Alphanumeric).take(10).map(char::from).collect(),
+        state: task_category.to_owned(),
+        created_at: Utc::now(),
+        finished_at: None 
+    };
+
+    parsed.push(random_task);
+    fs::write(DB_PATH, &serde_json::to_vec(&parsed)?)?;
+    Ok(parsed)
+}
+
+fn remove_task_at_index(task_list_state: &mut ListState) -> Result<(), Error> {
+    if let Some(selected) = task_list_state.selected() {
+        let db_content = fs::read_to_string(DB_PATH)?;
+        let mut parsed: Vec<Task> = serde_json::from_str(&db_content)?;
+        parsed.remove(selected);
+        fs::write(DB_PATH, &serde_json::to_vec(&parsed)?)?;
+        task_list_state.select(Some(selected - 1));
+    }
+
+    Ok(())
 }
 
 fn render_home<'a>() -> Paragraph<'a> {
@@ -84,7 +123,7 @@ fn render_tasks<'a>(task_list_state: &ListState) -> (List<'a>, Table<'a>) {
         .border_type(BorderType::Plain);
 
     let task_list = read_db().expect("can fetch task list");
-    let items = task_list
+    let items: Vec<_> = task_list
         .iter()
         .map(|task| {
             ListItem::new(Spans::from(vec![Span::styled(
@@ -103,11 +142,18 @@ fn render_tasks<'a>(task_list_state: &ListState) -> (List<'a>, Table<'a>) {
         .expect("exists")
         .clone();
 
+    let list = List::new(items).block(tasks).highlight_style(
+        Style::default()
+            .bg(Color::Yellow)
+            .fg(Color::Black)
+            .add_modifier(Modifier::BOLD)
+    );
+
     let task_detail = match selected_task.finished_at {
         Some(finished) => Table::new(vec![Row::new(vec![
             Cell::from(Span::raw(selected_task.id.to_string())),
             Cell::from(Span::raw(selected_task.name)),
-            Cell::from(Span::raw(selected_task.category)),
+            Cell::from(Span::raw(selected_task.state)),
             Cell::from(Span::raw(selected_task.created_at.to_string())),
             Cell::from(Span::raw(finished.to_string()))
         ])])
@@ -121,7 +167,7 @@ fn render_tasks<'a>(task_list_state: &ListState) -> (List<'a>, Table<'a>) {
                 Style::default().add_modifier(Modifier::BOLD)
             )),
             Cell::from(Span::styled(
-                "Category",
+                "State",
                 Style::default().add_modifier(Modifier::BOLD)
             )),
             Cell::from(Span::styled(
@@ -142,10 +188,51 @@ fn render_tasks<'a>(task_list_state: &ListState) -> (List<'a>, Table<'a>) {
         )
         .widths(&[
             Constraint::Percentage(5),
-            Constraint::Percentage(30)
+            Constraint::Percentage(30),
+            Constraint::Percentage(10),
+            Constraint::Percentage(20),
+            Constraint::Percentage(20)
+        ]),
+        None => Table::new(vec![Row::new(vec![
+            Cell::from(Span::raw(selected_task.id.to_string())),
+            Cell::from(Span::raw(selected_task.name)),
+            Cell::from(Span::raw(selected_task.state)),
+            Cell::from(Span::raw(selected_task.created_at.to_string()))
+        ])])
+        .header(Row::new(vec![
+            Cell::from(Span::styled(
+                "ID",
+                Style::default().add_modifier(Modifier::BOLD)
+            )),
+            Cell::from(Span::styled(
+                "Name",
+                Style::default().add_modifier(Modifier::BOLD)
+            )),
+            Cell::from(Span::styled(
+                "State",
+                Style::default().add_modifier(Modifier::BOLD)
+            )),
+            Cell::from(Span::styled(
+                "Created At",
+                Style::default().add_modifier(Modifier::BOLD)
+            ))
+        ]))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .style(Style::default().fg(Color::White))
+                .title("Detail")
+                .border_type(BorderType::Plain)
+        )
+        .widths(&[
+            Constraint::Percentage(5),
+            Constraint::Percentage(30),
+            Constraint::Percentage(10),
+            Constraint::Percentage(20)
         ])
-    }
-        
+    };
+
+    (list,task_detail)     
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -253,7 +340,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     rect.render_widget(right, task_chunks[1]);
                 }
             }
-        });
+        })?;
 
         match rx.recv()? {
             Event::Input(event) => match event.code {
@@ -264,10 +351,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 KeyCode::Char('h') => active_menu_item = MenuItem::Home,
                 KeyCode::Char('t') => active_menu_item = MenuItem::Tasks,
+                KeyCode::Char('a') => {
+                    add_random_task_to_db().expect("can add new random task");
+                } 
+                KeyCode::Char('d') => {
+                    remove_task_at_index(&mut task_list_state).expect("can remove task");
+                }
+                KeyCode::Down => {
+                    if let Some(selected) = task_list_state.selected() {
+                        let amount_task = read_db().expect("can fetch task list").len();
+                        if selected >= amount_task - 1 {
+                            task_list_state.select(Some(0));
+                        } else {
+                            task_list_state.select(Some(selected + 1));
+                        }
+                    }
+                }
+                KeyCode::Up => {
+                    if let Some(selected) = task_list_state.selected() {
+                        let amount_task = read_db().expect("can fetch task list").len();
+                        if selected > 0 {
+                            task_list_state.select(Some(selected - 1));
+                        } else {
+                            task_list_state.select(Some(amount_task - 1));
+                        }
+                    }
+                }
                 _ => {}
             },
             Event::Tick => {}
         }
-
     }
+
+    Ok(())
 }
