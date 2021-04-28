@@ -344,7 +344,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         match rx.recv()? {
             Event::Input(event) => match event.code {
-                KeyCode::Char('q') => {
+                KeyCode::Char('e') => {
                     disable_raw_mode()?;
                     terminal.show_cursor()?;
                     break;
