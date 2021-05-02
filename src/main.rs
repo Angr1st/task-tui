@@ -1,4 +1,4 @@
-use std::{fs, io, sync::mpsc, thread, time::{Duration, Instant}};
+use std::{fs::{self, File, OpenOptions}, io::{self, Seek, SeekFrom}, path::PathBuf, sync::mpsc, thread, time::{Duration, Instant}};
 use crossterm::{event,event::KeyCode, terminal::{disable_raw_mode, enable_raw_mode}};
 use rand::prelude::*;
 use rand::distributions::Alphanumeric;
@@ -8,6 +8,31 @@ use thiserror::Error;
 use tui::{Terminal, backend::CrosstermBackend, layout::{Alignment, Constraint, Direction, Layout}, style::{Color, Modifier, Style}, text::{Span, Spans}, widgets::{Block, BorderType, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table, Tabs}};
 
 const DB_PATH: &str = "./data/db.json";
+
+fn find_default_db_file() -> Option<PathBuf> {
+    home::home_dir().map(|mut path| {
+        path.push(DB_PATH);
+        path
+    })
+}
+
+fn ensure_db_file_exists(path:PathBuf) -> Result<File, Error> {
+    let file = {if path.exists() {
+        OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(path)?
+    }
+    else {
+        OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(path)?
+    }};
+
+    Ok(file)
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 struct Task {
@@ -46,10 +71,24 @@ impl From<MenuItem> for usize {
     }
 }
 
+fn collect_tasks(mut file: &File) -> Result<Vec<Task>,Error> {
+    file.seek(SeekFrom::Start(0))?; // Rewind the file before.
+    let tasks = match serde_json::from_reader(file) {
+        Ok(tasks) => tasks,
+        Err(e) if e.is_eof() => Vec::new(),
+        Err(e) => Err(e)?,
+    };
+    file.seek(SeekFrom::Start(0))?; // Rewind the file after.
+    Ok(tasks)
+}
+
 fn read_db() -> Result<Vec<Task>, Error> {
-    let db_content = fs::read_to_string(DB_PATH)?;
-    let parsed: Vec<Task> = serde_json::from_str(&db_content)?;
-    Ok(parsed)
+    let db_path = find_default_db_file()
+    .expect("Task db file should be found!");
+
+    let db_file = ensure_db_file_exists(db_path)?;
+    
+    collect_tasks(&db_file)
 }
 
 fn add_random_task_to_db() -> Result<Vec<Task>, Error> {
