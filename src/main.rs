@@ -360,7 +360,7 @@ fn render_tasks<'a>(task_list_state: &ListState) -> (List<'a>, Table<'a>) {
                     )),
                 ]))
                 .block(
-                    create_default_table_block()
+                    create_default_table_block("Detail")
                 )
                 .widths(&[
                     Constraint::Percentage(5),
@@ -394,7 +394,7 @@ fn render_tasks<'a>(task_list_state: &ListState) -> (List<'a>, Table<'a>) {
                     )),
                 ]))
                 .block(
-                    create_default_table_block()
+                    create_default_table_block("Detail")
                 )
                 .widths(&[
                     Constraint::Percentage(5),
