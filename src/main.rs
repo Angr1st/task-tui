@@ -236,7 +236,7 @@ fn add_random_task_to_db() -> Result<Vec<Task>, Error> {
 fn progress_task_at_index(task_list_state: &mut ListState) -> Result<(), Error> {
     if let Some(selected) = task_list_state.selected() {
         let mut parsed: Vec<Task> = read_db()?;
-        let element =&mut parsed[selected];
+        let element = &mut parsed[selected];
         element.progress();
         write_db(parsed)?;
     }
@@ -249,7 +249,9 @@ fn remove_task_at_index(task_list_state: &mut ListState) -> Result<(), Error> {
         let mut parsed: Vec<Task> = read_db()?;
         parsed.remove(selected);
         write_db(parsed)?;
-        task_list_state.select(Some(selected - 1));
+        if selected != 0 {
+            task_list_state.select(Some(selected - 1));
+        }
     }
 
     Ok(())
@@ -300,14 +302,9 @@ fn render_tasks<'a>(task_list_state: &ListState) -> (List<'a>, Table<'a>) {
         })
         .collect();
 
-    let selected_task = {
-        let inner = task_list.get(task_list_state.selected().unwrap_or(0));
-
-        match inner {
-            Some(sel) => sel.clone(),
-            None => Task::create_random_task(),
-        }
-    };
+    let selected_task = task_list
+        .get(task_list_state.selected().unwrap_or(0))
+        .map(|f| f.clone());
 
     let list = List::new(items).block(tasks).highlight_style(
         Style::default()
@@ -316,88 +313,113 @@ fn render_tasks<'a>(task_list_state: &ListState) -> (List<'a>, Table<'a>) {
             .add_modifier(Modifier::BOLD),
     );
 
-    let task_detail = match selected_task.finished_at {
-        Some(finished) => Table::new(vec![Row::new(vec![
-            Cell::from(Span::raw(selected_task.id.to_string())),
-            Cell::from(Span::raw(selected_task.name)),
-            Cell::from(Span::raw(selected_task.state.to_string())),
-            Cell::from(Span::raw(selected_task.created_at.to_string())),
-            Cell::from(Span::raw(finished.to_string())),
-        ])])
-        .header(Row::new(vec![
-            Cell::from(Span::styled(
-                "ID",
-                Style::default().add_modifier(Modifier::BOLD),
-            )),
-            Cell::from(Span::styled(
-                "Name",
-                Style::default().add_modifier(Modifier::BOLD),
-            )),
-            Cell::from(Span::styled(
-                "State",
-                Style::default().add_modifier(Modifier::BOLD),
-            )),
-            Cell::from(Span::styled(
-                "Created At",
-                Style::default().add_modifier(Modifier::BOLD),
-            )),
-            Cell::from(Span::styled(
-                "Finished At",
-                Style::default().add_modifier(Modifier::BOLD),
-            )),
-        ]))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .style(Style::default().fg(Color::White))
-                .title("Detail")
-                .border_type(BorderType::Plain),
-        )
-        .widths(&[
-            Constraint::Percentage(5),
-            Constraint::Percentage(30),
-            Constraint::Percentage(10),
-            Constraint::Percentage(20),
-            Constraint::Percentage(20),
-        ]),
-        None => Table::new(vec![Row::new(vec![
-            Cell::from(Span::raw(selected_task.id.to_string())),
-            Cell::from(Span::raw(selected_task.name)),
-            Cell::from(Span::raw(selected_task.state.to_string())),
-            Cell::from(Span::raw(selected_task.created_at.to_string())),
-        ])])
-        .header(Row::new(vec![
-            Cell::from(Span::styled(
-                "ID",
-                Style::default().add_modifier(Modifier::BOLD),
-            )),
-            Cell::from(Span::styled(
-                "Name",
-                Style::default().add_modifier(Modifier::BOLD),
-            )),
-            Cell::from(Span::styled(
-                "State",
-                Style::default().add_modifier(Modifier::BOLD),
-            )),
-            Cell::from(Span::styled(
-                "Created At",
-                Style::default().add_modifier(Modifier::BOLD),
-            )),
-        ]))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .style(Style::default().fg(Color::White))
-                .title("Detail")
-                .border_type(BorderType::Plain),
-        )
-        .widths(&[
-            Constraint::Percentage(5),
-            Constraint::Percentage(30),
-            Constraint::Percentage(10),
-            Constraint::Percentage(20),
-        ]),
-    };
+    let task_detail = match selected_task {
+        Some(inner_task) => {
+            match inner_task.finished_at {
+                Some(finished) => Table::new(vec![Row::new(vec![
+                    Cell::from(Span::raw(inner_task.id.to_string())),
+                    Cell::from(Span::raw(inner_task.name)),
+                    Cell::from(Span::raw(inner_task.state.to_string())),
+                    Cell::from(Span::raw(inner_task.created_at.to_string())),
+                    Cell::from(Span::raw(finished.to_string())),
+                ])])
+                .header(Row::new(vec![
+                    Cell::from(Span::styled(
+                        "ID",
+                        Style::default().add_modifier(Modifier::BOLD),
+                    )),
+                    Cell::from(Span::styled(
+                        "Name",
+                        Style::default().add_modifier(Modifier::BOLD),
+                    )),
+                    Cell::from(Span::styled(
+                        "State",
+                        Style::default().add_modifier(Modifier::BOLD),
+                    )),
+                    Cell::from(Span::styled(
+                        "Created At",
+                        Style::default().add_modifier(Modifier::BOLD),
+                    )),
+                    Cell::from(Span::styled(
+                        "Finished At",
+                        Style::default().add_modifier(Modifier::BOLD),
+                    )),
+                ]))
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .style(Style::default().fg(Color::White))
+                        .title("Detail")
+                        .border_type(BorderType::Plain),
+                )
+                .widths(&[
+                    Constraint::Percentage(5),
+                    Constraint::Percentage(30),
+                    Constraint::Percentage(10),
+                    Constraint::Percentage(20),
+                    Constraint::Percentage(20),
+                ]),
+                None => Table::new(vec![Row::new(vec![
+                    Cell::from(Span::raw(inner_task.id.to_string())),
+                    Cell::from(Span::raw(inner_task.name)),
+                    Cell::from(Span::raw(inner_task.state.to_string())),
+                    Cell::from(Span::raw(inner_task.created_at.to_string())),
+                ])])
+                .header(Row::new(vec![
+                    Cell::from(Span::styled(
+                        "ID",
+                        Style::default().add_modifier(Modifier::BOLD),
+                    )),
+                    Cell::from(Span::styled(
+                        "Name",
+                        Style::default().add_modifier(Modifier::BOLD),
+                    )),
+                    Cell::from(Span::styled(
+                        "State",
+                        Style::default().add_modifier(Modifier::BOLD),
+                    )),
+                    Cell::from(Span::styled(
+                        "Created At",
+                        Style::default().add_modifier(Modifier::BOLD),
+                    )),
+                ]))
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .style(Style::default().fg(Color::White))
+                        .title("Detail")
+                        .border_type(BorderType::Plain),
+                )
+                .widths(&[
+                    Constraint::Percentage(5),
+                    Constraint::Percentage(30),
+                    Constraint::Percentage(10),
+                    Constraint::Percentage(20),
+                ]),
+            }
+        },
+        None => {
+            Table::new(vec![Row::new(vec![
+                Cell::from(Span::raw("")),
+            ])])
+            .header(Row::new(vec![
+                Cell::from(Span::styled(
+                    "",
+                    Style::default().add_modifier(Modifier::BOLD),
+                ))
+            ]))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .style(Style::default().fg(Color::White))
+                    .title("Detail")
+                    .border_type(BorderType::Plain),
+            ).widths(&[
+                Constraint::Percentage(70)
+            ])
+        }
+    }
+    ;
 
     (list, task_detail)
 }
@@ -520,13 +542,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 KeyCode::Char('h') => active_menu_item = MenuItem::Home,
                 KeyCode::Char('t') => active_menu_item = MenuItem::Tasks,
                 KeyCode::Char('a') => {
-                    add_random_task_to_db().expect("can add new random task");
+                    add_random_task_to_db()?;
                 }
                 KeyCode::Char('p') => {
-                    progress_task_at_index(&mut task_list_state).expect("can progress task");
+                    progress_task_at_index(&mut task_list_state)?;
                 }
                 KeyCode::Char('d') => {
-                    remove_task_at_index(&mut task_list_state).expect("can remove task");
+                    remove_task_at_index(&mut task_list_state)?;
                 }
                 KeyCode::Down => {
                     if let Some(selected) = task_list_state.selected() {
