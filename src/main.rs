@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{Date, DateTime, Utc};
 use crossterm::{
     event,
     event::KeyCode,
@@ -136,6 +136,7 @@ struct Task {
     name: String,
     state: TaskState,
     created_at: DateTime<Utc>,
+    started_at: Option<DateTime<Utc>>,
     finished_at: Option<DateTime<Utc>>,
 }
 
@@ -154,12 +155,31 @@ impl Task {
                 .collect(),
             state: task_category,
             created_at: Utc::now(),
+            started_at: None,
             finished_at: None,
         }
     }
 
     fn progress(&mut self) {
        self.state = self.state.progress();
+    }
+
+    fn create_table_row<'a>(self) -> Row<'a> {
+        let mut cell_vec = vec![
+            Cell::from(Span::raw(self.id.to_string())),
+            Cell::from(Span::raw(self.name)),
+            Cell::from(Span::raw(self.state.to_string())),
+            Cell::from(Span::raw(self.created_at.to_string()))];
+
+        if let Some(started_at) = self.started_at {
+            cell_vec.push(Cell::from(Span::raw(started_at.to_string())));
+        }
+
+        if let Some(finished) = self.finished_at {
+            cell_vec.push(Cell::from(Span::raw(finished.to_string())));
+        }
+
+        Row::new(cell_vec)
     }
 }
 
@@ -316,13 +336,7 @@ fn render_tasks<'a>(task_list_state: &ListState) -> (List<'a>, Table<'a>) {
     let task_detail = match selected_task {
         Some(inner_task) => {
             match inner_task.finished_at {
-                Some(finished) => Table::new(vec![Row::new(vec![
-                    Cell::from(Span::raw(inner_task.id.to_string())),
-                    Cell::from(Span::raw(inner_task.name)),
-                    Cell::from(Span::raw(inner_task.state.to_string())),
-                    Cell::from(Span::raw(inner_task.created_at.to_string())),
-                    Cell::from(Span::raw(finished.to_string())),
-                ])])
+                Some(finished) => Table::new(vec![inner_task.create_table_row()])
                 .header(Row::new(vec![
                     Cell::from(Span::styled(
                         "ID",
@@ -346,11 +360,7 @@ fn render_tasks<'a>(task_list_state: &ListState) -> (List<'a>, Table<'a>) {
                     )),
                 ]))
                 .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .style(Style::default().fg(Color::White))
-                        .title("Detail")
-                        .border_type(BorderType::Plain),
+                    create_default_table_block()
                 )
                 .widths(&[
                     Constraint::Percentage(5),
@@ -384,11 +394,7 @@ fn render_tasks<'a>(task_list_state: &ListState) -> (List<'a>, Table<'a>) {
                     )),
                 ]))
                 .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .style(Style::default().fg(Color::White))
-                        .title("Detail")
-                        .border_type(BorderType::Plain),
+                    create_default_table_block()
                 )
                 .widths(&[
                     Constraint::Percentage(5),
@@ -398,30 +404,40 @@ fn render_tasks<'a>(task_list_state: &ListState) -> (List<'a>, Table<'a>) {
                 ]),
             }
         },
-        None => {
-            Table::new(vec![Row::new(vec![
-                Cell::from(Span::raw("")),
-            ])])
-            .header(Row::new(vec![
-                Cell::from(Span::styled(
-                    "",
-                    Style::default().add_modifier(Modifier::BOLD),
-                ))
-            ]))
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .style(Style::default().fg(Color::White))
-                    .title("Detail")
-                    .border_type(BorderType::Plain),
-            ).widths(&[
-                Constraint::Percentage(70)
-            ])
-        }
+        None => create_empty_table()
     }
     ;
 
     (list, task_detail)
+}
+
+fn create_default_table_block<'a>(title: &'a str) -> Block<'a> {
+    Block::default()
+        .borders(Borders::ALL)
+        .style(Style::default().fg(Color::White))
+        .title(title)
+        .border_type(BorderType::Plain)
+}
+
+fn create_empty_table<'a>() -> Table<'a> {
+    Table::new(vec![Row::new(vec![
+        Cell::from(Span::raw("")),
+    ])])
+    .header(Row::new(vec![
+        Cell::from(Span::styled(
+            "",
+            Style::default().add_modifier(Modifier::BOLD),
+        ))
+    ]))
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .style(Style::default().fg(Color::White))
+            .title("Detail")
+            .border_type(BorderType::Plain),
+    ).widths(&[
+        Constraint::Percentage(70)
+    ])
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
