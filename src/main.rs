@@ -159,7 +159,7 @@ impl Task {
     }
 
     fn progress(&mut self) {
-        self.state.progress();
+       self.state = self.state.progress();
     }
 }
 
