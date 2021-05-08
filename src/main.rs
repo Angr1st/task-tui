@@ -161,7 +161,7 @@ impl Task {
     }
 
     fn progress(&mut self) {
-       self.state = self.state.progress();
+        self.state = self.state.progress();
     }
 
     fn create_table_row<'a>(self) -> Row<'a> {
@@ -169,7 +169,8 @@ impl Task {
             Cell::from(Span::raw(self.id.to_string())),
             Cell::from(Span::raw(self.name)),
             Cell::from(Span::raw(self.state.to_string())),
-            Cell::from(Span::raw(self.created_at.to_string()))];
+            Cell::from(Span::raw(self.created_at.to_string())),
+        ];
 
         if let Some(started_at) = self.started_at {
             cell_vec.push(Cell::from(Span::raw(started_at.to_string())));
@@ -209,6 +210,40 @@ impl From<MenuItem> for usize {
         match input {
             MenuItem::Home => 0,
             MenuItem::Tasks => 1,
+        }
+    }
+}
+
+impl From<MenuItem> for &str {
+    fn from(input: MenuItem) -> &'static str {
+        match input {
+            MenuItem::Home => "Home",
+            MenuItem::Tasks => "Tasks",
+        }
+    }
+}
+
+impl From<MenuItem> for UiSections {
+    fn from(input: MenuItem) -> UiSections {
+        UiSections::MenuItem(input)
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+enum UiSections {
+    Detail,
+    Copyright,
+    Menu,
+    MenuItem(MenuItem),
+}
+
+impl From<UiSections> for &str {
+    fn from(input: UiSections) -> &'static str {
+        match input {
+            UiSections::Detail => "Detail",
+            UiSections::Copyright => "Copyright",
+            UiSections::Menu => "Menu",
+            UiSections::MenuItem(menu_item) => menu_item.into(),
         }
     }
 }
@@ -294,22 +329,14 @@ fn render_home<'a>() -> Paragraph<'a> {
     ])
     .alignment(Alignment::Center)
     .block(
-        Block::default()
-            .borders(Borders::ALL)
-            .style(Style::default().fg(Color::White))
-            .title("Home")
-            .border_type(BorderType::Plain)
+        create_default_table_block(MenuItem::Home.into())
     );
 
     home
 }
 
 fn render_tasks<'a>(task_list_state: &ListState) -> (List<'a>, Table<'a>) {
-    let tasks = Block::default()
-        .borders(Borders::ALL)
-        .style(Style::default().fg(Color::White))
-        .title("Tasks")
-        .border_type(BorderType::Plain);
+    let tasks = create_default_table_block(MenuItem::Tasks.into());
 
     let task_list = read_db().expect("can fetch task list");
     let items: Vec<_> = task_list
@@ -334,9 +361,8 @@ fn render_tasks<'a>(task_list_state: &ListState) -> (List<'a>, Table<'a>) {
     );
 
     let task_detail = match selected_task {
-        Some(inner_task) => {
-            match inner_task.finished_at {
-                Some(finished) => Table::new(vec![inner_task.create_table_row()])
+        Some(inner_task) => match inner_task.finished_at {
+            Some(finished) => Table::new(vec![inner_task.create_table_row()])
                 .header(Row::new(vec![
                     Cell::from(Span::styled(
                         "ID",
@@ -359,9 +385,7 @@ fn render_tasks<'a>(task_list_state: &ListState) -> (List<'a>, Table<'a>) {
                         Style::default().add_modifier(Modifier::BOLD),
                     )),
                 ]))
-                .block(
-                    create_default_table_block("Detail")
-                )
+                .block(create_default_table_block(UiSections::Detail.into()))
                 .widths(&[
                     Constraint::Percentage(5),
                     Constraint::Percentage(30),
@@ -369,44 +393,40 @@ fn render_tasks<'a>(task_list_state: &ListState) -> (List<'a>, Table<'a>) {
                     Constraint::Percentage(20),
                     Constraint::Percentage(20),
                 ]),
-                None => Table::new(vec![Row::new(vec![
-                    Cell::from(Span::raw(inner_task.id.to_string())),
-                    Cell::from(Span::raw(inner_task.name)),
-                    Cell::from(Span::raw(inner_task.state.to_string())),
-                    Cell::from(Span::raw(inner_task.created_at.to_string())),
-                ])])
-                .header(Row::new(vec![
-                    Cell::from(Span::styled(
-                        "ID",
-                        Style::default().add_modifier(Modifier::BOLD),
-                    )),
-                    Cell::from(Span::styled(
-                        "Name",
-                        Style::default().add_modifier(Modifier::BOLD),
-                    )),
-                    Cell::from(Span::styled(
-                        "State",
-                        Style::default().add_modifier(Modifier::BOLD),
-                    )),
-                    Cell::from(Span::styled(
-                        "Created At",
-                        Style::default().add_modifier(Modifier::BOLD),
-                    )),
-                ]))
-                .block(
-                    create_default_table_block("Detail")
-                )
-                .widths(&[
-                    Constraint::Percentage(5),
-                    Constraint::Percentage(30),
-                    Constraint::Percentage(10),
-                    Constraint::Percentage(20),
-                ]),
-            }
+            None => Table::new(vec![Row::new(vec![
+                Cell::from(Span::raw(inner_task.id.to_string())),
+                Cell::from(Span::raw(inner_task.name)),
+                Cell::from(Span::raw(inner_task.state.to_string())),
+                Cell::from(Span::raw(inner_task.created_at.to_string())),
+            ])])
+            .header(Row::new(vec![
+                Cell::from(Span::styled(
+                    "ID",
+                    Style::default().add_modifier(Modifier::BOLD),
+                )),
+                Cell::from(Span::styled(
+                    "Name",
+                    Style::default().add_modifier(Modifier::BOLD),
+                )),
+                Cell::from(Span::styled(
+                    "State",
+                    Style::default().add_modifier(Modifier::BOLD),
+                )),
+                Cell::from(Span::styled(
+                    "Created At",
+                    Style::default().add_modifier(Modifier::BOLD),
+                )),
+            ]))
+            .block(create_default_table_block(UiSections::Detail.into()))
+            .widths(&[
+                Constraint::Percentage(5),
+                Constraint::Percentage(30),
+                Constraint::Percentage(10),
+                Constraint::Percentage(20),
+            ]),
         },
-        None => create_empty_table()
-    }
-    ;
+        None => create_empty_table(),
+    };
 
     (list, task_detail)
 }
@@ -420,24 +440,13 @@ fn create_default_table_block<'a>(title: &'a str) -> Block<'a> {
 }
 
 fn create_empty_table<'a>() -> Table<'a> {
-    Table::new(vec![Row::new(vec![
-        Cell::from(Span::raw("")),
-    ])])
-    .header(Row::new(vec![
-        Cell::from(Span::styled(
+    Table::new(vec![Row::new(vec![Cell::from(Span::raw(""))])])
+        .header(Row::new(vec![Cell::from(Span::styled(
             "",
             Style::default().add_modifier(Modifier::BOLD),
-        ))
-    ]))
-    .block(
-        Block::default()
-            .borders(Borders::ALL)
-            .style(Style::default().fg(Color::White))
-            .title("Detail")
-            .border_type(BorderType::Plain),
-    ).widths(&[
-        Constraint::Percentage(70)
-    ])
+        ))]))
+        .block(create_default_table_block(UiSections::Detail.into()))
+        .widths(&[Constraint::Percentage(70)])
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -511,7 +520,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let tabs = Tabs::new(menu)
                 .select(active_menu_item.into())
-                .block(Block::default().title("Menu").borders(Borders::ALL))
+                .block(create_default_table_block(UiSections::Menu.into()))
                 .style(Style::default().fg(Color::White))
                 .highlight_style(Style::default().fg(Color::Yellow))
                 .divider(Span::raw("|"));
@@ -521,13 +530,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let copyright = Paragraph::new("task-TUI 2021 - all rights reserved")
                 .style(Style::default().fg(Color::LightCyan))
                 .alignment(Alignment::Center)
-                .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .style(Style::default().fg(Color::White))
-                        .title("Copyright")
-                        .border_type(BorderType::Plain),
-                );
+                .block(create_default_table_block(UiSections::Copyright.into()));
 
             rect.render_widget(copyright, chunks[2]);
 
