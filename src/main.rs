@@ -324,7 +324,10 @@ fn render_home<'a>() -> Paragraph<'a> {
             Style::default().fg(Color::White)
         )]),
         Spans::from(vec![Span::raw("")]),
-        Spans::from(vec![Span::raw("Press 't' to access tasks, 'a' to add random new tasks, 'p' to progress the currently selected task and 'd' to delete the the currently selected task.")])
+        Spans::from(vec![Span::raw("Press 't' to access tasks,")]),
+        Spans::from(vec![Span::raw("'a' to add random new tasks,")]),
+        Spans::from(vec![Span::raw("'p' to progress the currently selected task")]),
+        Spans::from(vec![Span::raw("'d' to delete the the currently selected task.")])
 
     ])
     .alignment(Alignment::Center)
