@@ -291,9 +291,11 @@ fn add_random_task_to_db() -> Result<Vec<Task>, Error> {
 fn progress_task_at_index(task_list_state: &mut ListState) -> Result<(), Error> {
     if let Some(selected) = task_list_state.selected() {
         let mut parsed: Vec<Task> = read_db()?;
-        let element = &mut parsed[selected];
-        element.progress();
-        write_db(parsed)?;
+        if parsed.len() > 0 {
+            let element = &mut parsed[selected];
+            element.progress();
+            write_db(parsed)?;
+        }
     }
 
     Ok(())
@@ -302,10 +304,12 @@ fn progress_task_at_index(task_list_state: &mut ListState) -> Result<(), Error> 
 fn remove_task_at_index(task_list_state: &mut ListState) -> Result<(), Error> {
     if let Some(selected) = task_list_state.selected() {
         let mut parsed: Vec<Task> = read_db()?;
-        parsed.remove(selected);
-        write_db(parsed)?;
-        if selected != 0 {
-            task_list_state.select(Some(selected - 1));
+        if parsed.len() > 0 {
+            parsed.remove(selected);
+            write_db(parsed)?;
+            if selected != 0 {
+                task_list_state.select(Some(selected - 1));
+            }
         }
     }
 
@@ -321,19 +325,20 @@ fn render_home<'a>() -> Paragraph<'a> {
         Spans::from(vec![Span::raw("")]),
         Spans::from(vec![Span::styled(
             "task-TUI",
-            Style::default().fg(Color::White)
+            Style::default().fg(Color::White),
         )]),
         Spans::from(vec![Span::raw("")]),
         Spans::from(vec![Span::raw("Press 't' to access tasks,")]),
         Spans::from(vec![Span::raw("'a' to add random new tasks,")]),
-        Spans::from(vec![Span::raw("'p' to progress the currently selected task")]),
-        Spans::from(vec![Span::raw("'d' to delete the the currently selected task.")])
-
+        Spans::from(vec![Span::raw(
+            "'p' to progress the currently selected task",
+        )]),
+        Spans::from(vec![Span::raw(
+            "'d' to delete the the currently selected task.",
+        )]),
     ])
     .alignment(Alignment::Center)
-    .block(
-        create_default_table_block(MenuItem::Home.into())
-    );
+    .block(create_default_table_block(MenuItem::Home.into()));
 
     home
 }
