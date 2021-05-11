@@ -162,6 +162,11 @@ impl Task {
 
     fn progress(&mut self) {
         self.state = self.state.progress();
+        match self.state {
+            TaskState::Started => self.started_at = Some(Utc::now()),
+            TaskState::Done => self.finished_at = Some(Utc::now()),
+            _ => {}
+        }
     }
 
     fn create_table_row<'a>(self) -> Row<'a> {
