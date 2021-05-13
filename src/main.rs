@@ -1,4 +1,4 @@
-use chrono::{Date, DateTime, Utc};
+use chrono::{DateTime, Utc};
 use crossterm::{
     event,
     event::KeyCode,
@@ -169,10 +169,10 @@ impl Task {
         }
     }
 
-    fn create_table_row<'a>(self) -> Row<'a> {
+    fn create_table_row<'a>(&self) -> Row<'a> {
         let mut cell_vec = vec![
             Cell::from(Span::raw(self.id.to_string())),
-            Cell::from(Span::raw(self.name)),
+            Cell::from(Span::raw(self.name.clone())),
             Cell::from(Span::raw(self.state.to_string())),
             Cell::from(Span::raw(self.created_at.to_string())),
         ];
@@ -186,6 +186,76 @@ impl Task {
         }
 
         Row::new(cell_vec)
+    }
+
+    fn create_header_row<'a>(&self) -> Row<'a> {
+        let mut cell_vec = vec![
+            Cell::from(Span::styled(
+                "ID",
+                Style::default().add_modifier(Modifier::BOLD),
+            )),
+            Cell::from(Span::styled(
+                "Name",
+                Style::default().add_modifier(Modifier::BOLD),
+            )),
+            Cell::from(Span::styled(
+                "State",
+                Style::default().add_modifier(Modifier::BOLD),
+            )),
+            Cell::from(Span::styled(
+                "Created At",
+                Style::default().add_modifier(Modifier::BOLD),
+            )),
+        ];
+
+        if let Some(_) = self.started_at {
+            cell_vec.push(Cell::from(Span::styled(
+                "Started At",
+                Style::default().add_modifier(Modifier::BOLD),
+            )));
+        }
+
+        if let Some(_) = self.finished_at {
+            cell_vec.push(Cell::from(Span::styled(
+                "Finished At",
+                Style::default().add_modifier(Modifier::BOLD),
+            )));
+        }
+
+        Row::new(cell_vec)
+    }
+
+    fn create_block_constraints<'a>(self) -> &'a [Constraint] {
+        match self.state {
+            TaskState::Pending => &[
+                Constraint::Percentage(5),
+                Constraint::Percentage(20),
+                Constraint::Percentage(15),
+                Constraint::Percentage(19),
+            ],
+            TaskState::Started => &[
+                Constraint::Percentage(5),
+                Constraint::Percentage(20),
+                Constraint::Percentage(15),
+                Constraint::Percentage(19),
+                Constraint::Percentage(19),
+            ],
+            TaskState::InProgress => &[
+                Constraint::Percentage(5),
+                Constraint::Percentage(20),
+                Constraint::Percentage(15),
+                Constraint::Percentage(19),
+                Constraint::Percentage(19),
+            ],
+            TaskState::Done => &[
+                Constraint::Percentage(5),
+                Constraint::Percentage(20),
+                Constraint::Percentage(15),
+                Constraint::Percentage(19),
+                Constraint::Percentage(19),
+                Constraint::Percentage(19),
+            ],
+        }
     }
 }
 
@@ -374,70 +444,10 @@ fn render_tasks<'a>(task_list_state: &ListState) -> (List<'a>, Table<'a>) {
     );
 
     let task_detail = match selected_task {
-        Some(inner_task) => match inner_task.finished_at {
-            Some(finished) => Table::new(vec![inner_task.create_table_row()])
-                .header(Row::new(vec![
-                    Cell::from(Span::styled(
-                        "ID",
-                        Style::default().add_modifier(Modifier::BOLD),
-                    )),
-                    Cell::from(Span::styled(
-                        "Name",
-                        Style::default().add_modifier(Modifier::BOLD),
-                    )),
-                    Cell::from(Span::styled(
-                        "State",
-                        Style::default().add_modifier(Modifier::BOLD),
-                    )),
-                    Cell::from(Span::styled(
-                        "Created At",
-                        Style::default().add_modifier(Modifier::BOLD),
-                    )),
-                    Cell::from(Span::styled(
-                        "Finished At",
-                        Style::default().add_modifier(Modifier::BOLD),
-                    )),
-                ]))
-                .block(create_default_table_block(UiSections::Detail.into()))
-                .widths(&[
-                    Constraint::Percentage(5),
-                    Constraint::Percentage(30),
-                    Constraint::Percentage(10),
-                    Constraint::Percentage(20),
-                    Constraint::Percentage(20),
-                ]),
-            None => Table::new(vec![Row::new(vec![
-                Cell::from(Span::raw(inner_task.id.to_string())),
-                Cell::from(Span::raw(inner_task.name)),
-                Cell::from(Span::raw(inner_task.state.to_string())),
-                Cell::from(Span::raw(inner_task.created_at.to_string())),
-            ])])
-            .header(Row::new(vec![
-                Cell::from(Span::styled(
-                    "ID",
-                    Style::default().add_modifier(Modifier::BOLD),
-                )),
-                Cell::from(Span::styled(
-                    "Name",
-                    Style::default().add_modifier(Modifier::BOLD),
-                )),
-                Cell::from(Span::styled(
-                    "State",
-                    Style::default().add_modifier(Modifier::BOLD),
-                )),
-                Cell::from(Span::styled(
-                    "Created At",
-                    Style::default().add_modifier(Modifier::BOLD),
-                )),
-            ]))
+        Some(inner_task) => Table::new(vec![inner_task.create_table_row()])
+            .header(inner_task.create_header_row())
             .block(create_default_table_block(UiSections::Detail.into()))
-            .widths(&[
-                Constraint::Percentage(5),
-                Constraint::Percentage(30),
-                Constraint::Percentage(10),
-                Constraint::Percentage(20),
-            ]),
-        },
+            .widths(inner_task.create_block_constraints()),
         None => create_empty_table(),
     };
 
