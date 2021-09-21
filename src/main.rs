@@ -69,7 +69,7 @@ enum TaskState {
 
 impl TaskState {
     fn new(mut rng: ThreadRng) -> TaskState {
-        TaskState::try_from(rng.gen_range(0..3)).expect("The range from 0 to 3 should be correct!")
+        TaskState::try_from(rng.gen_range(0..3)).expect("The range from 0 to 3 should contain entries!")
     }
 
     fn to_string(&self) -> String {
