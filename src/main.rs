@@ -4,7 +4,6 @@ use crossterm::{
     event::KeyCode,
     terminal::{disable_raw_mode, enable_raw_mode},
 };
-use rand::distributions::Alphanumeric;
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -68,8 +67,8 @@ enum TaskState {
 }
 
 impl TaskState {
-    fn new(mut rng: ThreadRng) -> TaskState {
-        TaskState::try_from(rng.gen_range(0..3)).expect("The range from 0 to 3 should contain entries!")
+    fn new() -> TaskState {
+        TaskState::Pending
     }
 
     fn to_string(&self) -> String {
@@ -91,6 +90,12 @@ impl TaskState {
             TaskState::InProgress => TaskState::Done,
             TaskState::Done => TaskState::Done,
         }
+    }
+}
+
+impl Default for TaskState {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -141,19 +146,13 @@ struct Task {
 }
 
 impl Task {
-    fn create_random_task() -> Task {
-        let mut rng = rand::thread_rng();
-
-        let task_category = TaskState::new(rng.clone());
+    fn create_task(number:usize,task_name:String) -> Task {
+        let task_state = TaskState::new();
 
         Task {
-            id: rng.gen_range(1..99999),
-            name: rng
-                .sample_iter(Alphanumeric)
-                .take(10)
-                .map(char::from)
-                .collect(),
-            state: task_category,
+            id: number,
+            name: task_name,
+            state: task_state,
             created_at: Utc::now(),
             started_at: None,
             finished_at: None,
@@ -355,9 +354,11 @@ fn write_db(tasks: Vec<Task>) -> Result<Vec<Task>, Error> {
     Ok(tasks)
 }
 
-fn add_random_task_to_db() -> Result<Vec<Task>, Error> {
+fn add_task_to_db() -> Result<Vec<Task>, Error> {
     let mut parsed: Vec<Task> = read_db()?;
-    parsed.push(Task::create_random_task());
+    todo!("Implement getting the highest Task Number");
+    //parsed.last()
+    parsed.push(Task::create_task(String::from("DEFAULT")));
 
     let parsed = write_db(parsed)?;
     Ok(parsed)
@@ -584,7 +585,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 KeyCode::Char('h') => active_menu_item = MenuItem::Home,
                 KeyCode::Char('t') => active_menu_item = MenuItem::Tasks,
                 KeyCode::Char('a') => {
-                    add_random_task_to_db()?;
+                    add_task_to_db()?;
                 }
                 KeyCode::Char('p') => {
                     progress_task_at_index(&mut task_list_state)?;
