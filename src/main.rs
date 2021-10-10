@@ -6,16 +6,7 @@ use crossterm::{
 };
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{
-    convert::TryFrom,
-    fs::{File, OpenOptions},
-    io::{self, Seek, SeekFrom},
-    path::PathBuf,
-    sync::mpsc,
-    thread,
-    time::{Duration, Instant},
-    usize,
-};
+use std::{convert::TryFrom, fs::{File, OpenOptions}, io::{self, Read, Seek, SeekFrom}, path::PathBuf, sync::mpsc, thread, time::{Duration, Instant}, usize};
 use thiserror::Error;
 use tui::{
     backend::CrosstermBackend,
@@ -324,7 +315,14 @@ impl From<UiSections> for &str {
 
 fn collect_tasks(mut file: &File) -> Result<Vec<Task>, Error> {
     file.seek(SeekFrom::Start(0))?; // Rewind the file before.
-    let tasks = match serde_json::from_reader(file) {
+    let mut s = String::new();
+    file.read_to_string(&mut s)?;
+
+    if s == "null" {
+        return Ok(Vec::new())
+    }
+
+    let tasks = match serde_json::from_str(&s) {
         Ok(tasks) => tasks,
         Err(e) if e.is_eof() => Vec::new(),
         Err(e) => Err(e)?,
@@ -345,20 +343,20 @@ fn get_db_file() -> Result<File, Error> {
     Ok(db_file)
 }
 
-fn write_db(tasks: Vec<Task>) -> Result<Vec<Task>, Error> {
+fn write_db(mut tasks: Vec<Task>) -> Result<Vec<Task>, Error> {
     let db_file = get_db_file()?;
 
     db_file.set_len(0)?;
-
-    serde_json::to_writer(db_file, &tasks)?;
+    let sorted_tasks = &tasks.sort_by(|a,b| a.id.cmp(&b.id));
+    serde_json::to_writer(db_file, sorted_tasks)?;
     Ok(tasks)
 }
 
 fn add_task_to_db() -> Result<Vec<Task>, Error> {
     let mut parsed: Vec<Task> = read_db()?;
-    todo!("Implement getting the highest Task Number");
-    //parsed.last()
-    parsed.push(Task::create_task(String::from("DEFAULT")));
+    
+    let highest_id = parsed.last().map_or(1, |a| a.id);
+    parsed.push(Task::create_task(highest_id,String::from("DEFAULT")));
 
     let parsed = write_db(parsed)?;
     Ok(parsed)
