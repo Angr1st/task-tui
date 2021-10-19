@@ -347,16 +347,23 @@ fn write_db(mut tasks: Vec<Task>) -> Result<Vec<Task>, Error> {
     let db_file = get_db_file()?;
 
     db_file.set_len(0)?;
-    let sorted_tasks = &tasks.sort_by(|a,b| a.id.cmp(&b.id));
-    serde_json::to_writer(db_file, sorted_tasks)?;
+    tasks.sort_by(|a,b| a.id.cmp(&b.id));
+    serde_json::to_writer(db_file, &tasks)?;
     Ok(tasks)
 }
 
 fn add_task_to_db() -> Result<Vec<Task>, Error> {
     let mut parsed: Vec<Task> = read_db()?;
-    
-    let highest_id = parsed.last().map_or(1, |a| a.id);
-    parsed.push(Task::create_task(highest_id,String::from("DEFAULT")));
+    let new_task = if parsed.len() != 0 
+    {
+        let highest_id = parsed.last().map_or(1, |a| a.id) + 1;
+        Task::create_task(highest_id,String::from("DEFAULT"))
+    }
+    else {
+        Task::create_task(1,String::from("DEFAULT"))
+    };
+
+    parsed.push(new_task);
 
     let parsed = write_db(parsed)?;
     Ok(parsed)
