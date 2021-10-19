@@ -18,6 +18,7 @@ use tui::{
     },
     Terminal,
 };
+use unicode_width::UnicodeWidthStr;
 
 const DB_PATH: &str = "./data/db.json";
 
@@ -47,6 +48,32 @@ fn ensure_db_file_exists(path: PathBuf) -> Result<File, Error> {
     };
 
     Ok(file)
+}
+
+
+enum InputMode {
+    Normal,
+    Editing,
+}
+
+/// App holds the state of the application
+struct App {
+    /// Current value of the input box
+    input: String,
+    /// Current input mode
+    input_mode: InputMode,
+    /// History of recorded messages
+    messages: Vec<String>,
+}
+
+impl Default for App {
+    fn default() -> App {
+        App {
+            input: String::new(),
+            input_mode: InputMode::Normal,
+            messages: Vec::new(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -509,6 +536,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut terminal = Terminal::new(backend)?;
     terminal.clear()?;
 
+    // Create default app state
+    let mut app = App::default();
+
     let menu_titles = vec!["Home", "Tasks", "Add", "Progress", "Delete", "Exit"];
     let mut active_menu_item = MenuItem::Home;
 
@@ -577,48 +607,70 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     rect.render_widget(right, task_chunks[1]);
                 }
             }
+            match app.input_mode {
+                InputMode::Normal =>
+                    // Hide the cursor. `Frame` does this by default, so we don't need to do anything here
+                    {}
+
+                InputMode::Editing => {
+                    // Make the cursor visible and ask tui-rs to put it at the specified coordinates after rendering
+                    rect.set_cursor(
+                        // Put cursor past the end of the input text
+                        chunks[1].x + app.input.width() as u16 + 1,
+                        // Move one line down, from the border to the input line
+                        chunks[1].y + 1,
+                    )
+                }
+            }
+
         })?;
 
         match rx.recv()? {
-            Event::Input(event) => match event.code {
-                KeyCode::Char('e') => {
-                    disable_raw_mode()?;
-                    terminal.show_cursor()?;
-                    terminal.clear()?;
-                    break;
-                }
-                KeyCode::Char('h') => active_menu_item = MenuItem::Home,
-                KeyCode::Char('t') => active_menu_item = MenuItem::Tasks,
-                KeyCode::Char('a') => {
-                    add_task_to_db()?;
-                }
-                KeyCode::Char('p') => {
-                    progress_task_at_index(&mut task_list_state)?;
-                }
-                KeyCode::Char('d') => {
-                    remove_task_at_index(&mut task_list_state)?;
-                }
-                KeyCode::Down => {
-                    if let Some(selected) = task_list_state.selected() {
-                        let amount_task = read_db().expect("can fetch task list").len();
-                        if selected >= amount_task - 1 {
-                            task_list_state.select(Some(0));
-                        } else {
-                            task_list_state.select(Some(selected + 1));
-                        }
+            Event::Input(event) => 
+                match app.input_mode {
+                    InputMode::Normal => {
+                        match event.code {
+                            KeyCode::Char('e') => {
+                                disable_raw_mode()?;
+                                terminal.show_cursor()?;
+                                terminal.clear()?;
+                                break;
+                            }
+                            KeyCode::Char('h') => active_menu_item = MenuItem::Home,
+                            KeyCode::Char('t') => active_menu_item = MenuItem::Tasks,
+                            KeyCode::Char('a') => {
+                                add_task_to_db()?;
+                            }
+                            KeyCode::Char('p') => {
+                                progress_task_at_index(&mut task_list_state)?;
+                            }
+                            KeyCode::Char('d') => {
+                                remove_task_at_index(&mut task_list_state)?;
+                            }
+                            KeyCode::Down => {
+                                if let Some(selected) = task_list_state.selected() {
+                                    let amount_task = read_db().expect("can fetch task list").len();
+                                    if selected >= amount_task - 1 {
+                                        task_list_state.select(Some(0));
+                                    } else {
+                                        task_list_state.select(Some(selected + 1));
+                                    }
+                                }
+                            }
+                            KeyCode::Up => {
+                                if let Some(selected) = task_list_state.selected() {
+                                    let amount_task = read_db().expect("can fetch task list").len();
+                                    if selected > 0 {
+                                        task_list_state.select(Some(selected - 1));
+                                    } else {
+                                        task_list_state.select(Some(amount_task - 1));
+                                    }
+                                }
+                            }
+                            _ => {}
                     }
                 }
-                KeyCode::Up => {
-                    if let Some(selected) = task_list_state.selected() {
-                        let amount_task = read_db().expect("can fetch task list").len();
-                        if selected > 0 {
-                            task_list_state.select(Some(selected - 1));
-                        } else {
-                            task_list_state.select(Some(amount_task - 1));
-                        }
-                    }
-                }
-                _ => {}
+                InputMode::Editing => {}
             },
             Event::Tick => {}
         }
