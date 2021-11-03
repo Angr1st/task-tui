@@ -4,20 +4,11 @@ use crossterm::{
     event::KeyCode,
     terminal::{disable_raw_mode, enable_raw_mode},
 };
-use rand::prelude::*;
+
 use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fs::{File, OpenOptions}, io::{self, Read, Seek, SeekFrom}, path::PathBuf, sync::mpsc, thread, time::{Duration, Instant}, usize};
 use thiserror::Error;
-use tui::{
-    backend::CrosstermBackend,
-    layout::{Alignment, Constraint, Direction, Layout},
-    style::{Color, Modifier, Style},
-    text::{Span, Spans},
-    widgets::{
-        Block, BorderType, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table, Tabs,
-    },
-    Terminal,
-};
+use tui::{Terminal, backend::CrosstermBackend, layout::{Alignment, Constraint, Direction, Layout, Rect}, style::{Color, Modifier, Style}, text::{Span, Spans}, widgets::{Block, BorderType, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Table, Tabs}};
 use unicode_width::UnicodeWidthStr;
 
 const DB_PATH: &str = "./data/db.json";
@@ -50,7 +41,7 @@ fn ensure_db_file_exists(path: PathBuf) -> Result<File, Error> {
     Ok(file)
 }
 
-
+#[derive(PartialEq)]
 enum InputMode {
     Normal,
     Editing,
@@ -61,17 +52,14 @@ struct App {
     /// Current value of the input box
     input: String,
     /// Current input mode
-    input_mode: InputMode,
-    /// History of recorded messages
-    messages: Vec<String>,
+    input_mode: InputMode
 }
 
 impl Default for App {
     fn default() -> App {
         App {
             input: String::new(),
-            input_mode: InputMode::Normal,
-            messages: Vec::new(),
+            input_mode: InputMode::Normal
         }
     }
 }
@@ -379,15 +367,15 @@ fn write_db(mut tasks: Vec<Task>) -> Result<Vec<Task>, Error> {
     Ok(tasks)
 }
 
-fn add_task_to_db() -> Result<Vec<Task>, Error> {
+fn add_task_to_db(name:String) -> Result<Vec<Task>, Error> {
     let mut parsed: Vec<Task> = read_db()?;
     let new_task = if parsed.len() != 0 
     {
         let highest_id = parsed.last().map_or(1, |a| a.id) + 1;
-        Task::create_task(highest_id,String::from("DEFAULT"))
+        Task::create_task(highest_id,name)
     }
     else {
-        Task::create_task(1,String::from("DEFAULT"))
+        Task::create_task(1,name)
     };
 
     parsed.push(new_task);
@@ -505,6 +493,34 @@ fn create_empty_table<'a>() -> Table<'a> {
         .widths(&[Constraint::Percentage(70)])
 }
 
+/// helper function to create a centered rect using up
+/// certain percentage of the available rect `r`
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Percentage((100 - percent_y) / 2),
+                Constraint::Percentage(percent_y),
+                Constraint::Percentage((100 - percent_y) / 2),
+            ]
+            .as_ref(),
+        )
+        .split(r);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(
+            [
+                Constraint::Percentage((100 - percent_x) / 2),
+                Constraint::Percentage(percent_x),
+                Constraint::Percentage((100 - percent_x) / 2),
+            ]
+            .as_ref(),
+        )
+        .split(popup_layout[1])[1]
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     enable_raw_mode().expect("can run in raw mode");
 
@@ -607,18 +623,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     rect.render_widget(right, task_chunks[1]);
                 }
             }
+
+            if app.input_mode == InputMode::Editing {
+                //let block = Block::default().title("Popup").borders(Borders::ALL);
+                let input = Paragraph::new(app.input.as_ref())
+                .style(match app.input_mode {
+                    InputMode::Normal => Style::default(),
+                    InputMode::Editing => Style::default().fg(Color::Yellow),
+                })
+                .block(Block::default().borders(Borders::ALL).title("Input"));
+                
+                let area = centered_rect(60, 10, size);
+                rect.render_widget(Clear, area); //this clears out the background
+                rect.render_widget(input, area);
+            }
+
             match app.input_mode {
                 InputMode::Normal =>
                     // Hide the cursor. `Frame` does this by default, so we don't need to do anything here
                     {}
 
                 InputMode::Editing => {
+                    let area = centered_rect(60, 10, size);
+
                     // Make the cursor visible and ask tui-rs to put it at the specified coordinates after rendering
                     rect.set_cursor(
                         // Put cursor past the end of the input text
-                        chunks[1].x + app.input.width() as u16 + 1,
+                        area.x + app.input.width() as u16 + 1,
                         // Move one line down, from the border to the input line
-                        chunks[1].y + 1,
+                        area.y + 1,
                     )
                 }
             }
@@ -639,7 +672,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             KeyCode::Char('h') => active_menu_item = MenuItem::Home,
                             KeyCode::Char('t') => active_menu_item = MenuItem::Tasks,
                             KeyCode::Char('a') => {
-                                add_task_to_db()?;
+                                app.input_mode = InputMode::Editing;
+                                //add_task_to_db()?;
                             }
                             KeyCode::Char('p') => {
                                 progress_task_at_index(&mut task_list_state)?;
@@ -670,7 +704,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             _ => {}
                     }
                 }
-                InputMode::Editing => {}
+                InputMode::Editing => {
+                    match event.code {
+                        KeyCode::Enter => {
+                            add_task_to_db(app.input.drain(..).collect())?;
+                            app.input_mode = InputMode::Normal;
+                        }
+                        KeyCode::Char(c) => {
+                            app.input.push(c);
+                        }
+                        KeyCode::Backspace => {
+                            app.input.pop();
+                        }
+                        KeyCode::Esc => {
+                            app.input_mode = InputMode::Normal;
+                        }
+                        _ => {}
+                    }
+                }
             },
             Event::Tick => {}
         }
