@@ -6,9 +6,28 @@ use crossterm::{
 };
 
 use serde::{Deserialize, Serialize};
-use std::{convert::TryFrom, fs::{File, OpenOptions}, io::{self, Read, Seek, SeekFrom}, path::PathBuf, sync::mpsc, thread, time::{Duration, Instant}, usize};
+use std::{
+    convert::TryFrom,
+    fs::{File, OpenOptions},
+    io::{self, Read, Seek, SeekFrom},
+    path::PathBuf,
+    sync::mpsc,
+    thread,
+    time::{Duration, Instant},
+    usize,
+};
 use thiserror::Error;
-use tui::{Terminal, backend::CrosstermBackend, layout::{Alignment, Constraint, Direction, Layout, Rect}, style::{Color, Modifier, Style}, text::{Span, Spans}, widgets::{Block, BorderType, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Table, Tabs}};
+use tui::{
+    backend::CrosstermBackend,
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
+    text::{Span, Spans},
+    widgets::{
+        Block, BorderType, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Table,
+        Tabs,
+    },
+    Terminal,
+};
 use unicode_width::UnicodeWidthStr;
 
 const DB_PATH: &str = "./data/db.json";
@@ -52,14 +71,14 @@ struct App {
     /// Current value of the input box
     input: String,
     /// Current input mode
-    input_mode: InputMode
+    input_mode: InputMode,
 }
 
 impl Default for App {
     fn default() -> App {
         App {
             input: String::new(),
-            input_mode: InputMode::Normal
+            input_mode: InputMode::Normal,
         }
     }
 }
@@ -152,7 +171,7 @@ struct Task {
 }
 
 impl Task {
-    fn create_task(number:usize,task_name:String) -> Task {
+    fn create_task(number: usize, task_name: String) -> Task {
         let task_state = TaskState::new();
 
         Task {
@@ -334,7 +353,7 @@ fn collect_tasks(mut file: &File) -> Result<Vec<Task>, Error> {
     file.read_to_string(&mut s)?;
 
     if s == "null" {
-        return Ok(Vec::new())
+        return Ok(Vec::new());
     }
 
     let tasks = match serde_json::from_str(&s) {
@@ -362,20 +381,18 @@ fn write_db(mut tasks: Vec<Task>) -> Result<Vec<Task>, Error> {
     let db_file = get_db_file()?;
 
     db_file.set_len(0)?;
-    tasks.sort_by(|a,b| a.id.cmp(&b.id));
+    tasks.sort_by(|a, b| a.id.cmp(&b.id));
     serde_json::to_writer(db_file, &tasks)?;
     Ok(tasks)
 }
 
-fn add_task_to_db(name:String) -> Result<Vec<Task>, Error> {
+fn add_task_to_db(name: String) -> Result<Vec<Task>, Error> {
     let mut parsed: Vec<Task> = read_db()?;
-    let new_task = if parsed.len() != 0 
-    {
+    let new_task = if parsed.len() != 0 {
         let highest_id = parsed.last().map_or(1, |a| a.id) + 1;
-        Task::create_task(highest_id,name)
-    }
-    else {
-        Task::create_task(1,name)
+        Task::create_task(highest_id, name)
+    } else {
+        Task::create_task(1, name)
     };
 
     parsed.push(new_task);
@@ -627,12 +644,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if app.input_mode == InputMode::Editing {
                 //let block = Block::default().title("Popup").borders(Borders::ALL);
                 let input = Paragraph::new(app.input.as_ref())
-                .style(match app.input_mode {
-                    InputMode::Normal => Style::default(),
-                    InputMode::Editing => Style::default().fg(Color::Yellow),
-                })
-                .block(Block::default().borders(Borders::ALL).title("Input"));
-                
+                    .style(match app.input_mode {
+                        InputMode::Normal => Style::default(),
+                        InputMode::Editing => Style::default().fg(Color::Yellow),
+                    })
+                    .block(Block::default().borders(Borders::ALL).title("Input"));
+
                 let area = centered_rect(60, 10, size);
                 rect.render_widget(Clear, area); //this clears out the background
                 rect.render_widget(input, area);
@@ -655,73 +672,69 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     )
                 }
             }
-
         })?;
 
         match rx.recv()? {
-            Event::Input(event) => 
-                match app.input_mode {
-                    InputMode::Normal => {
-                        match event.code {
-                            KeyCode::Char('e') => {
-                                disable_raw_mode()?;
-                                terminal.show_cursor()?;
-                                terminal.clear()?;
-                                break;
-                            }
-                            KeyCode::Char('h') => active_menu_item = MenuItem::Home,
-                            KeyCode::Char('t') => active_menu_item = MenuItem::Tasks,
-                            KeyCode::Char('a') => {
-                                app.input_mode = InputMode::Editing;
-                                //add_task_to_db()?;
-                            }
-                            KeyCode::Char('p') => {
-                                progress_task_at_index(&mut task_list_state)?;
-                            }
-                            KeyCode::Char('d') => {
-                                remove_task_at_index(&mut task_list_state)?;
-                            }
-                            KeyCode::Down => {
-                                if let Some(selected) = task_list_state.selected() {
-                                    let amount_task = read_db().expect("can fetch task list").len();
-                                    if selected >= amount_task - 1 {
-                                        task_list_state.select(Some(0));
-                                    } else {
-                                        task_list_state.select(Some(selected + 1));
-                                    }
-                                }
-                            }
-                            KeyCode::Up => {
-                                if let Some(selected) = task_list_state.selected() {
-                                    let amount_task = read_db().expect("can fetch task list").len();
-                                    if selected > 0 {
-                                        task_list_state.select(Some(selected - 1));
-                                    } else {
-                                        task_list_state.select(Some(amount_task - 1));
-                                    }
-                                }
-                            }
-                            _ => {}
-                    }
-                }
-                InputMode::Editing => {
+            Event::Input(event) => match app.input_mode {
+                InputMode::Normal => {
                     match event.code {
-                        KeyCode::Enter => {
-                            add_task_to_db(app.input.drain(..).collect())?;
-                            app.input_mode = InputMode::Normal;
+                        KeyCode::Char('e') => {
+                            disable_raw_mode()?;
+                            terminal.show_cursor()?;
+                            terminal.clear()?;
+                            break;
                         }
-                        KeyCode::Char(c) => {
-                            app.input.push(c);
+                        KeyCode::Char('h') => active_menu_item = MenuItem::Home,
+                        KeyCode::Char('t') => active_menu_item = MenuItem::Tasks,
+                        KeyCode::Char('a') => {
+                            app.input_mode = InputMode::Editing;
+                            //add_task_to_db()?;
                         }
-                        KeyCode::Backspace => {
-                            app.input.pop();
+                        KeyCode::Char('p') => {
+                            progress_task_at_index(&mut task_list_state)?;
                         }
-                        KeyCode::Esc => {
-                            app.input_mode = InputMode::Normal;
+                        KeyCode::Char('d') => {
+                            remove_task_at_index(&mut task_list_state)?;
+                        }
+                        KeyCode::Down => {
+                            if let Some(selected) = task_list_state.selected() {
+                                let amount_task = read_db().expect("can fetch task list").len();
+                                if selected >= amount_task - 1 {
+                                    task_list_state.select(Some(0));
+                                } else {
+                                    task_list_state.select(Some(selected + 1));
+                                }
+                            }
+                        }
+                        KeyCode::Up => {
+                            if let Some(selected) = task_list_state.selected() {
+                                let amount_task = read_db().expect("can fetch task list").len();
+                                if selected > 0 {
+                                    task_list_state.select(Some(selected - 1));
+                                } else {
+                                    task_list_state.select(Some(amount_task - 1));
+                                }
+                            }
                         }
                         _ => {}
                     }
                 }
+                InputMode::Editing => match event.code {
+                    KeyCode::Enter => {
+                        add_task_to_db(app.input.drain(..).collect())?;
+                        app.input_mode = InputMode::Normal;
+                    }
+                    KeyCode::Char(c) => {
+                        app.input.push(c);
+                    }
+                    KeyCode::Backspace => {
+                        app.input.pop();
+                    }
+                    KeyCode::Esc => {
+                        app.input_mode = InputMode::Normal;
+                    }
+                    _ => {}
+                },
             },
             Event::Tick => {}
         }
