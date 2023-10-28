@@ -188,7 +188,11 @@ impl Task {
         self.state = self.state.progress();
         match self.state {
             TaskState::Started => self.started_at = Some(Utc::now()),
-            TaskState::Done => self.finished_at = Some(Utc::now()),
+            TaskState::Done => {
+                if self.finished_at.is_none() {
+                    self.finished_at = Some(Utc::now())
+                }
+            }
             _ => {}
         }
     }
@@ -436,7 +440,12 @@ fn render_home<'a>() -> Paragraph<'a> {
         Line::from(""),
         Line::from("to"),
         Line::from(""),
-        Line::from(Span::styled("task-TUI", Style::default().fg(Color::White))),
+        Line::from(Span::styled(
+            "task-TUI",
+            Style::default()
+                .add_modifier(Modifier::BOLD)
+                .fg(Color::Yellow),
+        )),
         Line::from(""),
         Line::from("Press 't' to access tasks,"),
         Line::from("'a' to add random new tasks,"),
@@ -612,7 +621,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             rect.render_widget(tabs, chunks[0]);
 
-            let copyright = Paragraph::new("task-TUI 2021 - all rights reserved")
+            let copyright = Paragraph::new("task-TUI 2023 - all rights reserved")
                 .style(Style::default().fg(Color::LightCyan))
                 .alignment(Alignment::Center)
                 .block(create_default_table_block(UiSections::Copyright.into()));
