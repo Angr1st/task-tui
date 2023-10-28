@@ -5,6 +5,17 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 
+use ratatui::{
+    backend::CrosstermBackend,
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{
+        Block, BorderType, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Table,
+        Tabs,
+    },
+    Terminal,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     convert::TryFrom,
@@ -17,17 +28,6 @@ use std::{
     usize,
 };
 use thiserror::Error;
-use tui::{
-    backend::CrosstermBackend,
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
-    text::{Span, Spans},
-    widgets::{
-        Block, BorderType, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Table,
-        Tabs,
-    },
-    Terminal,
-};
 use unicode_width::UnicodeWidthStr;
 
 const DB_PATH: &str = "./data/db.json";
@@ -431,24 +431,17 @@ fn remove_task_at_index(task_list_state: &mut ListState) -> Result<(), Error> {
 
 fn render_home<'a>() -> Paragraph<'a> {
     let home = Paragraph::new(vec![
-        Spans::from(vec![Span::raw("")]),
-        Spans::from(vec![Span::raw("Welcome")]),
-        Spans::from(vec![Span::raw("")]),
-        Spans::from(vec![Span::raw("to")]),
-        Spans::from(vec![Span::raw("")]),
-        Spans::from(vec![Span::styled(
-            "task-TUI",
-            Style::default().fg(Color::White),
-        )]),
-        Spans::from(vec![Span::raw("")]),
-        Spans::from(vec![Span::raw("Press 't' to access tasks,")]),
-        Spans::from(vec![Span::raw("'a' to add random new tasks,")]),
-        Spans::from(vec![Span::raw(
-            "'p' to progress the currently selected task",
-        )]),
-        Spans::from(vec![Span::raw(
-            "'d' to delete the the currently selected task.",
-        )]),
+        Line::from(""),
+        Line::from("Welcome"),
+        Line::from(""),
+        Line::from("to"),
+        Line::from(""),
+        Line::from(Span::styled("task-TUI", Style::default().fg(Color::White))),
+        Line::from(""),
+        Line::from("Press 't' to access tasks,"),
+        Line::from("'a' to add random new tasks,"),
+        Line::from("'p' to progress the currently selected task"),
+        Line::from("'d' to delete the the currently selected task."),
     ])
     .alignment(Alignment::Center)
     .block(create_default_table_block(MenuItem::Home.into()));
@@ -463,7 +456,7 @@ fn render_tasks<'a>(task_list_state: &ListState) -> (List<'a>, Table<'a>) {
     let items: Vec<_> = task_list
         .iter()
         .map(|task| {
-            ListItem::new(Spans::from(vec![Span::styled(
+            ListItem::new(Line::from(vec![Span::styled(
                 task.name.clone(),
                 Style::default(),
             )]))
@@ -598,7 +591,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .iter()
                 .map(|t| {
                     let (first, rest) = t.split_at(1);
-                    Spans::from(vec![
+                    Line::from(vec![
                         Span::styled(
                             first,
                             Style::default()
@@ -643,7 +636,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             if app.input_mode == InputMode::Editing {
                 //let block = Block::default().title("Popup").borders(Borders::ALL);
-                let input = Paragraph::new(app.input.as_ref())
+                let input = Paragraph::new(Line::from(app.input.as_ref()))
                     .style(match app.input_mode {
                         InputMode::Normal => Style::default(),
                         InputMode::Editing => Style::default().fg(Color::Yellow),
