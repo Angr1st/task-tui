@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use crossterm::{
     event,
-    event::KeyCode,
+    event::{KeyCode, KeyEventKind},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 
@@ -554,7 +554,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             if event::poll(timeout).expect("poll works") {
                 if let event::Event::Key(key) = event::read().expect("can read events") {
-                    tx.send(Event::Input(key)).expect("can send events");
+                    if key.kind == KeyEventKind::Press {
+                        tx.send(Event::Input(key)).expect("can send events");
+                    }
                 }
             }
 
